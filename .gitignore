@@ -1,0 +1,20 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+/androidApp/build
+/shared/build
+/iosApp/*.xcodeproj/xcuserdata/
+/iosApp/*.xcodeproj/project.xcworkspace/xcuserdata/
+/iosApp/Pods/
+*.xcworkspace
+
+# Screenshots
+nail-app-screenshot.png
+*.log
