@@ -8,6 +8,9 @@ settings:
     INFOPLIST_FILE: iosApp/Info.plist
     PRODUCT_BUNDLE_IDENTIFIER: com.nailtryon.app
     DEVELOPMENT_TEAM: ""
+    FRAMEWORK_SEARCH_PATHS:
+      - "$(SRCROOT)/../shared/build/bin/iosSimulatorArm64/debugFramework"
+    OTHER_LINKER_FLAGS: "-framework shared"
 targets:
   iosApp:
     type: application
@@ -19,3 +22,13 @@ targets:
         SWIFT_VERSION: "5.9"
     info:
       path: iosApp/Info.plist
+    dependencies:
+      - framework: ../shared/build/bin/iosSimulatorArm64/debugFramework/shared.framework
+        embed: true
+    preBuildScripts:
+      - name: "Build Kotlin Shared Framework"
+        script: |
+          cd "$SRCROOT/.."
+          export JAVA_HOME=$(/usr/libexec/java_home -v 17 2>/dev/null)
+          ./gradlew :shared:linkDebugFrameworkIosSimulatorArm64
+        basedOnDependencyAnalysis: false
