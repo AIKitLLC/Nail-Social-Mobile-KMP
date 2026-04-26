@@ -13,12 +13,12 @@ struct NailDesignDTO: Codable, Identifiable {
     let userId: String
     let designPrompt: String
     let negativePrompt: String?
-    let imageDataUri: String
-    let extractedNailDataUri: String
+    let imageUrl: String
+    let extractedNailImageUrl: String?
     let isPublic: Bool
     let createdAt: String
     let hashtags: [String]?
-    let catId: Int?
+    let slug: String?
 }
 
 // MARK: - API Client

@@ -6,19 +6,24 @@ struct NailBrowserView: View {
 
     @State private var designs: [DesignItem] = []
     @State private var isLoading = true
+    @State private var isLoadingMore = false
     @State private var errorMessage: String?
+    @State private var currentPage = 1
+    @State private var totalPages = 1
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8)
+    ]
 
     var body: some View {
-        VStack {
-            Text("Nail Designs")
-                .font(.largeTitle)
-                .padding(.top)
-
-            if isLoading {
+        VStack(spacing: 0) {
+            if isLoading && designs.isEmpty {
                 Spacer()
                 ProgressView("Loading designs...")
                 Spacer()
-            } else if let error = errorMessage {
+            } else if let error = errorMessage, designs.isEmpty {
                 Spacer()
                 VStack(spacing: 16) {
                     Image(systemName: "exclamationmark.triangle")
@@ -30,7 +35,7 @@ struct NailBrowserView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Button("Retry") {
-                        loadDesigns()
+                        loadDesigns(page: 1)
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -42,41 +47,82 @@ struct NailBrowserView: View {
                 Spacer()
             } else {
                 ScrollView {
-                    LazyVGrid(columns: [
-                        GridItem(.flexible()),
-                        GridItem(.flexible())
-                    ], spacing: 12) {
+                    LazyVGrid(columns: columns, spacing: 8) {
                         ForEach(designs) { design in
                             DesignCardView(design: design)
                                 .onTapGesture {
                                     onDesignSelected(design.id)
                                 }
+                                .onAppear {
+                                    if design.id == designs.last?.id {
+                                        loadMore()
+                                    }
+                                }
                         }
                     }
-                    .padding()
+                    .padding(.horizontal, 8)
+                    .padding(.top, 8)
+
+                    if isLoadingMore {
+                        ProgressView()
+                            .padding()
+                    }
+                }
+                .refreshable {
+                    await refreshDesigns()
                 }
             }
         }
-        .onAppear(perform: loadDesigns)
+        .task {
+            if designs.isEmpty {
+                loadDesigns(page: 1)
+            }
+        }
     }
 
-    private func loadDesigns() {
-        isLoading = true
+    private func loadDesigns(page: Int) {
+        if page == 1 {
+            isLoading = true
+        }
         errorMessage = nil
 
         Task {
             do {
-                let response = try await NailAPIClient.shared.getDesigns()
+                let response = try await NailAPIClient.shared.getDesigns(page: page)
                 await MainActor.run {
-                    designs = response.designs.map { DesignItem(from: $0) }
+                    let newItems = response.designs.map { DesignItem(from: $0) }
+                    if page == 1 {
+                        designs = newItems
+                    } else {
+                        designs.append(contentsOf: newItems)
+                    }
+                    currentPage = response.currentPage
+                    totalPages = response.totalPages
                     isLoading = false
+                    isLoadingMore = false
                 }
             } catch {
                 await MainActor.run {
                     errorMessage = error.localizedDescription
                     isLoading = false
+                    isLoadingMore = false
                 }
             }
+        }
+    }
+
+    private func loadMore() {
+        guard !isLoadingMore, currentPage < totalPages else { return }
+        isLoadingMore = true
+        loadDesigns(page: currentPage + 1)
+    }
+
+    private func refreshDesigns() async {
+        let response = try? await NailAPIClient.shared.getDesigns(page: 1)
+        if let response {
+            designs = response.designs.map { DesignItem(from: $0) }
+            currentPage = response.currentPage
+            totalPages = response.totalPages
         }
     }
 }
@@ -92,12 +138,7 @@ struct DesignItem: Identifiable {
     init(from design: NailDesignDTO) {
         self.id = design.id
         self.prompt = design.designPrompt
-        // Use image URL or convert base64
-        if design.imageDataUri.hasPrefix("data:") {
-            self.imageUrl = nil // base64 is handled separately
-        } else {
-            self.imageUrl = design.imageDataUri
-        }
+        self.imageUrl = design.imageUrl
         self.hashtags = design.hashtags ?? []
     }
 }
@@ -106,8 +147,8 @@ struct DesignCardView: View {
     let design: DesignItem
 
     var body: some View {
-        VStack(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 12)
+        VStack(alignment: .leading, spacing: 4) {
+            RoundedRectangle(cornerRadius: 10)
                 .fill(Color.gray.opacity(0.2))
                 .aspectRatio(1, contentMode: .fit)
                 .overlay {
@@ -120,7 +161,7 @@ struct DesignCardView: View {
                                     .aspectRatio(contentMode: .fill)
                             case .failure:
                                 Image(systemName: "photo")
-                                    .font(.largeTitle)
+                                    .font(.title2)
                                     .foregroundColor(.gray)
                             case .empty:
                                 ProgressView()
@@ -130,28 +171,28 @@ struct DesignCardView: View {
                         }
                     } else {
                         Image(systemName: "sparkles")
-                            .font(.largeTitle)
+                            .font(.title2)
                             .foregroundColor(.pink)
                     }
                 }
-                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: 10))
 
             Text(design.prompt)
-                .font(.caption)
+                .font(.caption2)
                 .lineLimit(2)
-                .padding(.horizontal, 4)
+                .padding(.horizontal, 2)
 
             if !design.hashtags.isEmpty {
-                Text(design.hashtags.prefix(3).map { "#\($0)" }.joined(separator: " "))
+                Text(design.hashtags.prefix(2).map { "#\($0)" }.joined(separator: " "))
                     .font(.caption2)
                     .foregroundColor(.pink)
                     .lineLimit(1)
-                    .padding(.horizontal, 4)
-                    .padding(.bottom, 4)
+                    .padding(.horizontal, 2)
+                    .padding(.bottom, 2)
             }
         }
         .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.1), radius: 4)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .shadow(color: .black.opacity(0.08), radius: 3)
     }
 }

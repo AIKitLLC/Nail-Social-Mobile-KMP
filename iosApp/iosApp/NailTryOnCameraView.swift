@@ -15,26 +15,28 @@ struct NailTryOnCameraView: View {
 
     var body: some View {
         ZStack {
-            // Camera preview
-            CameraPreview(session: cameraManager.session)
-                .ignoresSafeArea()
-                .onAppear {
-                    cameraManager.start()
-                }
-                .onDisappear {
-                    cameraManager.stop()
-                }
+            if cameraManager.isSimulator {
+                // Simulator fallback UI
+                simulatorView
+            } else if let error = cameraManager.error {
+                // Camera error state
+                cameraErrorView(error)
+            } else {
+                // Camera preview
+                CameraPreview(session: cameraManager.session)
+                    .ignoresSafeArea()
 
-            // Mask overlay
-            if let mask = detectedMask {
-                Image(mask, scale: 1, label: Text("Nail Mask"))
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .opacity(0.6)
-                    .allowsHitTesting(false)
+                // Mask overlay
+                if let mask = detectedMask {
+                    Image(mask, scale: 1, label: Text("Nail Mask"))
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .opacity(0.6)
+                        .allowsHitTesting(false)
+                }
             }
 
-            // Bottom controls
+            // Bottom controls (always visible)
             VStack {
                 Spacer()
 
@@ -98,6 +100,82 @@ struct NailTryOnCameraView: View {
                 Spacer()
             }
         }
+        .onAppear {
+            cameraManager.start()
+        }
+        .onDisappear {
+            cameraManager.stop()
+        }
+    }
+
+    private var simulatorView: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            VStack(spacing: 24) {
+                Image(systemName: "hand.raised.fingers.spread")
+                    .font(.system(size: 80))
+                    .foregroundColor(.pink.opacity(0.6))
+
+                Text("Simulator Mode")
+                    .font(.title2.bold())
+                    .foregroundColor(.white)
+
+                Text("Camera is not available on the simulator.\nUse a physical device to try on nail designs.")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+
+                // Mock detection indicator
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(.green)
+                            .frame(width: 8, height: 8)
+                        Text("Mock hand detection active")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                    }
+
+                    Text("Pattern: \(patternNames[selectedPattern])")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.7))
+                }
+                .padding()
+                .background(Color.white.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+        }
+    }
+
+    private func cameraErrorView(_ error: String) -> some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            VStack(spacing: 16) {
+                Image(systemName: "camera.fill")
+                    .font(.system(size: 48))
+                    .foregroundColor(.orange)
+
+                Text("Camera Unavailable")
+                    .font(.title3.bold())
+                    .foregroundColor(.white)
+
+                Text(error)
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+
+                Button("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
     }
 
     private func patternColor(_ index: Int) -> Color {
@@ -136,17 +214,30 @@ struct PatternThumbnailIOS: View {
 
 class CameraManager: NSObject, ObservableObject {
     let session = AVCaptureSession()
+    @Published var error: String?
+    @Published var isSimulator: Bool = false
+
     private let sessionQueue = DispatchQueue(label: "camera.session.queue")
     private let output = AVCaptureVideoDataOutput()
 
+    override init() {
+        super.init()
+        #if targetEnvironment(simulator)
+        isSimulator = true
+        #endif
+    }
+
     func start() {
+        guard !isSimulator else { return }
+
         sessionQueue.async { [weak self] in
             self?.setupCamera()
-            self?.session.startRunning()
         }
     }
 
     func stop() {
+        guard !isSimulator else { return }
+
         sessionQueue.async { [weak self] in
             self?.session.stopRunning()
         }
@@ -155,13 +246,29 @@ class CameraManager: NSObject, ObservableObject {
     private func setupCamera() {
         session.sessionPreset = .medium
 
-        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
-              let input = try? AVCaptureDeviceInput(device: device) else {
+        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+            DispatchQueue.main.async {
+                self.error = "No camera device found. Please use a device with a camera."
+            }
             return
         }
 
-        if session.canAddInput(input) {
-            session.addInput(input)
+        do {
+            let input = try AVCaptureDeviceInput(device: device)
+
+            if session.canAddInput(input) {
+                session.addInput(input)
+            } else {
+                DispatchQueue.main.async {
+                    self.error = "Could not add camera input to session."
+                }
+                return
+            }
+        } catch {
+            DispatchQueue.main.async {
+                self.error = "Camera access denied: \(error.localizedDescription)"
+            }
+            return
         }
 
         output.setSampleBufferDelegate(self, queue: sessionQueue)
@@ -175,6 +282,8 @@ class CameraManager: NSObject, ObservableObject {
         if let connection = output.connection(with: .video) {
             connection.videoRotationAngle = 90 // Portrait
         }
+
+        session.startRunning()
     }
 }
 
@@ -201,17 +310,33 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
 struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
 
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: .zero)
-        let previewLayer = AVCaptureVideoPreviewLayer(session: session)
-        previewLayer.videoGravity = .resizeAspectFill
-        view.layer.addSublayer(previewLayer)
+    func makeUIView(context: Context) -> CameraHostView {
+        let view = CameraHostView()
+        view.previewLayer.session = session
+        view.previewLayer.videoGravity = .resizeAspectFill
         return view
     }
 
-    func updateUIView(_ uiView: UIView, context: Context) {
-        if let layer = uiView.layer.sublayers?.first as? AVCaptureVideoPreviewLayer {
-            layer.frame = uiView.bounds
-        }
+    func updateUIView(_ uiView: CameraHostView, context: Context) {
+        // Frame is updated automatically via layoutSubviews
+    }
+}
+
+/// UIView subclass that keeps the preview layer sized to its bounds
+class CameraHostView: UIView {
+    let previewLayer = AVCaptureVideoPreviewLayer()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        layer.addSublayer(previewLayer)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        previewLayer.frame = bounds
     }
 }
