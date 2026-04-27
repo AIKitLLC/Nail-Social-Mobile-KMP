@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var selectedDesignId: String?
-    @State private var showCamera = false
+    @State private var showCamera = true  // Start with camera immediately
 
     var body: some View {
         NavigationStack {

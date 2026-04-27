@@ -7,10 +7,11 @@ settings:
   base:
     INFOPLIST_FILE: iosApp/Info.plist
     PRODUCT_BUNDLE_IDENTIFIER: net.ai-kit.nail
-    DEVELOPMENT_TEAM: VFNXJC97WZ
-    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: Z7VRB9SJLK
+    CODE_SIGN_STYLE: Automatic
     CODE_SIGN_IDENTITY: Apple Development
     PROVISIONING_PROFILE_SPECIFIER: ""
+    PRODUCT_NAME: iosApp
 targets:
   iosApp:
     type: application
@@ -25,3 +26,6 @@ targets:
         SWIFT_VERSION: "5.9"
     info:
       path: iosApp/Info.plist
+      properties:
+        NSCameraUsageDescription: Camera is used for nail AR try-on
+        CFBundleDisplayName: Nail AR
