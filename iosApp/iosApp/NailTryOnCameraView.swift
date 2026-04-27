@@ -1,13 +1,13 @@
 import SwiftUI
 import AVFoundation
+import UIKit
 
-/// Camera-based nail try-on with CoreML + Vision
+/// Camera-based nail try-on with TensorFlow Lite + Vision framework
 struct NailTryOnCameraView: View {
     let designId: String?
     let onBack: () -> Void
 
     @StateObject private var cameraManager = CameraManager()
-    @State private var detectedMask: CGImage?
     @State private var selectedPattern = 0
     @State private var showDebug = false
 
@@ -16,35 +16,56 @@ struct NailTryOnCameraView: View {
     var body: some View {
         ZStack {
             if cameraManager.isSimulator {
-                // Simulator fallback UI
                 simulatorView
             } else if let error = cameraManager.error {
-                // Camera error state
                 cameraErrorView(error)
             } else {
                 // Camera preview
                 CameraPreview(session: cameraManager.session)
                     .ignoresSafeArea()
 
-                // Mask overlay
-                if let mask = detectedMask {
-                    Image(mask, scale: 1, label: Text("Nail Mask"))
+                // Mask overlay (from detection pipeline)
+                if let mask = cameraManager.maskImage {
+                    Image(uiImage: mask)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .opacity(0.6)
+                        .opacity(0.65)
+                        .allowsHitTesting(false)
+                }
+
+                // Debug overlay
+                if showDebug, let debug = cameraManager.debugImage {
+                    Image(uiImage: debug)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .opacity(0.3)
                         .allowsHitTesting(false)
                 }
             }
 
-            // Bottom controls (always visible)
+            // Bottom controls
             VStack {
                 Spacer()
+
+                // Detection status
+                if cameraManager.isDetecting {
+                    HStack {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        Text("Detecting nails...")
+                            .font(.caption)
+                            .foregroundColor(.white)
+                    }
+                    .padding(8)
+                    .background(.ultraThinMaterial)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
 
                 // Debug toggle
                 HStack {
                     Spacer()
                     Button(action: { showDebug.toggle() }) {
-                        Image(systemName: "ladybug")
+                        Image(systemName: showDebug ? "ladybug.fill" : "ladybug")
                             .padding(8)
                             .background(.ultraThinMaterial)
                             .clipShape(Circle())
@@ -68,6 +89,7 @@ struct NailTryOnCameraView: View {
                                 )
                                 .onTapGesture {
                                     selectedPattern = index
+                                    cameraManager.selectPattern(index)
                                 }
                             }
                         }
@@ -100,12 +122,6 @@ struct NailTryOnCameraView: View {
                 Spacer()
             }
         }
-        .onAppear {
-            cameraManager.start()
-        }
-        .onDisappear {
-            cameraManager.stop()
-        }
     }
 
     private var simulatorView: some View {
@@ -127,7 +143,6 @@ struct NailTryOnCameraView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
 
-                // Mock detection indicator
                 VStack(spacing: 8) {
                     HStack(spacing: 8) {
                         Circle()
@@ -137,7 +152,6 @@ struct NailTryOnCameraView: View {
                             .font(.caption)
                             .foregroundColor(.green)
                     }
-
                     Text("Pattern: \(patternNames[selectedPattern])")
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.7))
@@ -179,9 +193,7 @@ struct NailTryOnCameraView: View {
     }
 
     private func patternColor(_ index: Int) -> Color {
-        let colors: [Color] = [
-            .red, .white, .pink, .blue, .yellow, .purple
-        ]
+        let colors: [Color] = [.red, .white, .pink, .blue, .yellow, .purple]
         return colors[index % colors.count]
     }
 }
@@ -216,9 +228,16 @@ class CameraManager: NSObject, ObservableObject {
     let session = AVCaptureSession()
     @Published var error: String?
     @Published var isSimulator: Bool = false
+    @Published var maskImage: UIImage?
+    @Published var debugImage: UIImage?
+    @Published var isDetecting: Bool = false
 
     private let sessionQueue = DispatchQueue(label: "camera.session.queue")
     private let output = AVCaptureVideoDataOutput()
+    private let detector = NailDetectorIOS()
+    private let inferenceQueue = DispatchQueue(label: "nail.inference.queue", qos: .userInitiated)
+    private var frameCount = 0
+    private let processEveryNFrames = 3
 
     override init() {
         super.init()
@@ -229,61 +248,79 @@ class CameraManager: NSObject, ObservableObject {
 
     func start() {
         guard !isSimulator else { return }
-
-        sessionQueue.async { [weak self] in
-            self?.setupCamera()
-        }
+        sessionQueue.async { [weak self] in self?.setupCamera() }
     }
 
     func stop() {
         guard !isSimulator else { return }
+        sessionQueue.async { [weak self] in self?.session.stopRunning() }
+    }
 
-        sessionQueue.async { [weak self] in
-            self?.session.stopRunning()
+    func selectPattern(_ index: Int) {
+        // Generate pattern image based on selection
+        let colors: [UIColor] = [
+            .red, .white, .systemPink, .systemBlue, .systemYellow, .purple
+        ]
+        guard index >= 0, index < colors.count else {
+            detector.patternImage = nil
+            return
         }
+
+        let size = CGSize(width: 256, height: 256)
+        UIGraphicsBeginImageContextWithOptions(size, false, 1.0)
+        colors[index].setFill()
+        UIRectFill(CGRect(origin: .zero, size: size))
+        // Add some texture effect
+        let patternImg = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        detector.patternImage = patternImg
     }
 
     private func setupCamera() {
         session.sessionPreset = .medium
 
         guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
-            DispatchQueue.main.async {
-                self.error = "No camera device found. Please use a device with a camera."
-            }
+            DispatchQueue.main.async { self.error = "No camera device found." }
             return
         }
 
         do {
             let input = try AVCaptureDeviceInput(device: device)
-
-            if session.canAddInput(input) {
-                session.addInput(input)
-            } else {
-                DispatchQueue.main.async {
-                    self.error = "Could not add camera input to session."
-                }
-                return
-            }
+            if session.canAddInput(input) { session.addInput(input) } else { return }
         } catch {
-            DispatchQueue.main.async {
-                self.error = "Camera access denied: \(error.localizedDescription)"
-            }
+            DispatchQueue.main.async { self.error = "Camera access denied: \(error.localizedDescription)" }
             return
         }
 
         output.setSampleBufferDelegate(self, queue: sessionQueue)
         output.alwaysDiscardsLateVideoFrames = true
-
-        if session.canAddOutput(output) {
-            session.addOutput(output)
-        }
-
-        // Set orientation
+        if session.canAddOutput(output) { session.addOutput(output) }
         if let connection = output.connection(with: .video) {
-            connection.videoRotationAngle = 90 // Portrait
+            connection.videoRotationAngle = 90
         }
-
         session.startRunning()
+    }
+
+    private func pixelBufferToUIImage(_ pixelBuffer: CVPixelBuffer) -> UIImage? {
+        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+
+        guard let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer) else { return nil }
+        let width = CVPixelBufferGetWidth(pixelBuffer)
+        let height = CVPixelBufferGetHeight(pixelBuffer)
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue
+
+        guard let context = CGContext(
+            data: baseAddress, width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: bytesPerRow,
+            space: colorSpace, bitmapInfo: bitmapInfo
+        ) else { return nil }
+
+        guard let cgImage = context.makeImage() else { return nil }
+        return UIImage(cgImage: cgImage, scale: 1.0, orientation: .right)
     }
 }
 
@@ -291,21 +328,30 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
     func captureOutput(_ output: AVCaptureOutput,
                       didOutput sampleBuffer: CMSampleBuffer,
                       from connection: AVCaptureConnection) {
-        // Process frame with CoreML
+        frameCount += 1
+        guard frameCount % processEveryNFrames == 0 else { return }
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
 
-        // Run nail detection (simplified for now - will use CoreML model)
-        // In production, this would call the CoreML model + Vision framework
-        processNailDetection(pixelBuffer: pixelBuffer)
-    }
+        inferenceQueue.async { [weak self] in
+            guard let self = self else { return }
+            guard let image = self.pixelBufferToUIImage(pixelBuffer) else { return }
 
-    private func processNailDetection(pixelBuffer: CVPixelBuffer) {
-        // TODO: Run CoreML Nail Detection model
-        // For now, the mask will be shown when we implement the CoreML wrapper
+            DispatchQueue.main.async { self.isDetecting = true }
+            guard let result = self.detector.detectNails(image) else {
+                DispatchQueue.main.async { self.isDetecting = false }
+                return
+            }
+
+            DispatchQueue.main.async {
+                self.maskImage = result.maskImage
+                self.debugImage = result.inputImage
+                self.isDetecting = false
+            }
+        }
     }
 }
 
-// MARK: - Camera Preview (UIViewRepresentable)
+// MARK: - Camera Preview
 
 struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
@@ -317,12 +363,9 @@ struct CameraPreview: UIViewRepresentable {
         return view
     }
 
-    func updateUIView(_ uiView: CameraHostView, context: Context) {
-        // Frame is updated automatically via layoutSubviews
-    }
+    func updateUIView(_ uiView: CameraHostView, context: Context) {}
 }
 
-/// UIView subclass that keeps the preview layer sized to its bounds
 class CameraHostView: UIView {
     let previewLayer = AVCaptureVideoPreviewLayer()
 
@@ -331,9 +374,7 @@ class CameraHostView: UIView {
         layer.addSublayer(previewLayer)
     }
 
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override func layoutSubviews() {
         super.layoutSubviews()

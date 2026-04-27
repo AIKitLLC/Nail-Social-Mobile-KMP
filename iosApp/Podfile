@@ -1,0 +1,8 @@
+platform :ios, '17.0'
+
+target 'iosApp' do
+  use_frameworks!
+  
+  # TensorFlow Lite for iOS - official CocoaPod
+  pod 'TensorFlowLiteSwift', '~> 2.16'
+end

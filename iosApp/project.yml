@@ -7,28 +7,21 @@ settings:
   base:
     INFOPLIST_FILE: iosApp/Info.plist
     PRODUCT_BUNDLE_IDENTIFIER: net.ai-kit.nail
-    DEVELOPMENT_TEAM: ""
-    FRAMEWORK_SEARCH_PATHS:
-      - "$(SRCROOT)/../shared/build/bin/iosSimulatorArm64/debugFramework"
-    OTHER_LINKER_FLAGS: "-framework shared"
+    DEVELOPMENT_TEAM: VFNXJC97WZ
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: Apple Development
+    PROVISIONING_PROFILE_SPECIFIER: ""
 targets:
   iosApp:
     type: application
     platform: iOS
     sources:
-      - iosApp
+      - path: iosApp
+        includes:
+          - "*.swift"
+          - "*.tflite"
     settings:
       base:
         SWIFT_VERSION: "5.9"
     info:
       path: iosApp/Info.plist
-    dependencies:
-      - framework: ../shared/build/bin/iosSimulatorArm64/debugFramework/shared.framework
-        embed: true
-    preBuildScripts:
-      - name: "Build Kotlin Shared Framework"
-        script: |
-          cd "$SRCROOT/.."
-          export JAVA_HOME=$(/usr/libexec/java_home -v 17 2>/dev/null)
-          ./gradlew :shared:linkDebugFrameworkIosSimulatorArm64
-        basedOnDependencyAnalysis: false
