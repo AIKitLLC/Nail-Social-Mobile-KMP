@@ -29,20 +29,23 @@ enum SharedLayout {
             : LayoutSpec.shared.categoryTileHeightCompact
         return CGFloat(truncating: raw as NSNumber)
     }
+    static var readingRailMaxWidth: CGFloat {
+        CGFloat(truncating: LayoutSpec.shared.readingRailMaxWidthRegular as NSNumber)
+    }
 }
 
 extension View {
-    /// Constrains content to the iPad reading width on regular size classes
-    /// and centers it horizontally; passes through unchanged on compact
-    /// (iPhone portrait). Use on screens that look stretched at full iPad
-    /// width (forms, settings) but skip on grid screens that benefit from
-    /// using the whole canvas (Discover, Gallery).
+    /// Constrains content to a comfortable reading width on iPad and
+    /// centers it horizontally. Settings lists and forms benefit from this
+    /// — image grids that want the whole canvas should not apply it.
     @ViewBuilder
-    func centeredContentWidth(_ regular: Bool) -> some View {
+    func readingRail(_ regular: Bool) -> some View {
         if regular {
-            self
-                .frame(maxWidth: SharedLayout.maxContentWidthRegular, alignment: .center)
-                .frame(maxWidth: .infinity, alignment: .center)
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
+                self.frame(maxWidth: SharedLayout.readingRailMaxWidth)
+                Spacer(minLength: 0)
+            }
         } else {
             self
         }
@@ -540,6 +543,7 @@ struct ProfileScreen: View {
                     SettingRow(icon: "star.fill", title: "Rate Nail AR", subtitle: "Help us reach more polish lovers")
                 }
             }
+            .readingRail(isRegular)
         }
         .bottomBarSafeArea()
         .sheet(isPresented: $showAbout) {
