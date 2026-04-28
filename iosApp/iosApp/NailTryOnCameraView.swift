@@ -546,6 +546,10 @@ class CameraManager: NSObject, ObservableObject {
         }
     }
 
+    /// Cached color space — `CGColorSpaceCreateDeviceRGB()` is cheap once
+    /// but allocating it on every camera frame at 30+ FPS is measurable.
+    private static let sharedColorSpace = CGColorSpaceCreateDeviceRGB()
+
     private func pixelBufferToUIImage(_ pixelBuffer: CVPixelBuffer) -> UIImage? {
         CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
         defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
@@ -555,14 +559,13 @@ class CameraManager: NSObject, ObservableObject {
         let height = CVPixelBufferGetHeight(pixelBuffer)
         let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
 
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
         // BGRA format (kCVPixelFormatType_32BGRA)
         let bitmapInfo = CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue
 
         guard let context = CGContext(
             data: baseAddress, width: width, height: height,
             bitsPerComponent: 8, bytesPerRow: bytesPerRow,
-            space: colorSpace, bitmapInfo: bitmapInfo
+            space: Self.sharedColorSpace, bitmapInfo: bitmapInfo
         ) else { return nil }
 
         guard let cgImage = context.makeImage() else { return nil }
