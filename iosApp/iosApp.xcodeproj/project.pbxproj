@@ -8,6 +8,14 @@
 
 /* Begin PBXBuildFile section */
 		0ABA9B6E6D1E6EA506918A01 /* NailDetectorIOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CE59643143DFA25F04C4B00 /* NailDetectorIOS.swift */; };
+		1A2B3C4D5E6F708192A3B4C5 /* NailDetectorTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B3C4D5E6F70819203A4B5C6 /* NailDetectorTestView.swift */; };
+		3C4D5E6F708192A3B4C5D6E7 /* UXKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D5E6F708192A3B4C5D6E7F8 /* UXKit.swift */; };
+		5E6F708192A3B4C5D6E7F809 /* NailPatternFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F708192A3B4C5D6E7F8091A /* NailPatternFactory.swift */; };
+		70819203A4B5C6D7E8F90A1B /* BottomNavBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 819203A4B5C6D7E8F90A1B2C /* BottomNavBar.swift */; };
+		93A4B5C6D7E8F90A1B2C3D4E /* TabContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4B5C6D7E8F90A1B2C3D4E5F /* TabContent.swift */; };
+		B5C6D7E8F90A1B2C3D4E5F60 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6D7E8F90A1B2C3D4E5F6071 /* DesignSystem.swift */; };
+		D7E8F90A1B2C3D4E5F607182 /* shared.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E8F90A1B2C3D4E5F60718293 /* shared.xcframework */; };
+		FA1B2C3D4E5F60718293A4B5 /* SharedBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B2C3D4E5F60718293A4B5C6 /* SharedBridge.swift */; };
 		34CA32040A8E636CE35EC31D /* NailBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A63254D4E8D7760F83AA764 /* NailBrowserView.swift */; };
 		3B31BB7F21CE3203CAA4589C /* NailTryOnCameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60D014ACAA368BB1181B86AB /* NailTryOnCameraView.swift */; };
 		56B0305B5D3847FC6B326502 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE8509E5A49E4A5CAAEB3ADB /* ContentView.swift */; };
@@ -24,6 +32,14 @@
 		10E2555A46C66B062F8ACC12 /* HandPoseDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandPoseDetector.swift; sourceTree = "<group>"; };
 		145B51C5DA6F3D723E19D74D /* Pods-iosApp.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-iosApp.release.xcconfig"; path = "Target Support Files/Pods-iosApp/Pods-iosApp.release.xcconfig"; sourceTree = "<group>"; };
 		1CE59643143DFA25F04C4B00 /* NailDetectorIOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NailDetectorIOS.swift; sourceTree = "<group>"; };
+		2B3C4D5E6F70819203A4B5C6 /* NailDetectorTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NailDetectorTestView.swift; sourceTree = "<group>"; };
+		4D5E6F708192A3B4C5D6E7F8 /* UXKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UXKit.swift; sourceTree = "<group>"; };
+		6F708192A3B4C5D6E7F8091A /* NailPatternFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NailPatternFactory.swift; sourceTree = "<group>"; };
+		819203A4B5C6D7E8F90A1B2C /* BottomNavBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomNavBar.swift; sourceTree = "<group>"; };
+		A4B5C6D7E8F90A1B2C3D4E5F /* TabContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabContent.swift; sourceTree = "<group>"; };
+		C6D7E8F90A1B2C3D4E5F6071 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
+		E8F90A1B2C3D4E5F60718293 /* shared.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = shared.xcframework; path = "../shared/build/XCFrameworks/debug/shared.xcframework"; sourceTree = "<group>"; };
+		1B2C3D4E5F60718293A4B5C6 /* SharedBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedBridge.swift; sourceTree = "<group>"; };
 		38EA0F9AF145C3FD173B7488 /* TextureMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextureMapper.swift; sourceTree = "<group>"; };
 		4A63254D4E8D7760F83AA764 /* NailBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NailBrowserView.swift; sourceTree = "<group>"; };
 		53172AD2ABC75518ED565829 /* Pods_iosApp.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_iosApp.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -43,6 +59,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				948E16A890F8E4699E064532 /* Pods_iosApp.framework in Frameworks */,
+				D7E8F90A1B2C3D4E5F607182 /* shared.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -59,6 +76,13 @@
 				93D11F66C6D4574326A0AA06 /* NailAPIClient.swift */,
 				4A63254D4E8D7760F83AA764 /* NailBrowserView.swift */,
 				1CE59643143DFA25F04C4B00 /* NailDetectorIOS.swift */,
+				2B3C4D5E6F70819203A4B5C6 /* NailDetectorTestView.swift */,
+				4D5E6F708192A3B4C5D6E7F8 /* UXKit.swift */,
+				6F708192A3B4C5D6E7F8091A /* NailPatternFactory.swift */,
+				819203A4B5C6D7E8F90A1B2C /* BottomNavBar.swift */,
+				A4B5C6D7E8F90A1B2C3D4E5F /* TabContent.swift */,
+				C6D7E8F90A1B2C3D4E5F6071 /* DesignSystem.swift */,
+				1B2C3D4E5F60718293A4B5C6 /* SharedBridge.swift */,
 				9EA5589CF32A91F10AECAA4F /* NailTryOnApp.swift */,
 				60D014ACAA368BB1181B86AB /* NailTryOnCameraView.swift */,
 				38EA0F9AF145C3FD173B7488 /* TextureMapper.swift */,
@@ -89,6 +113,7 @@
 		891E39A4E84295B64973588F /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				E8F90A1B2C3D4E5F60718293 /* shared.xcframework */,
 				53172AD2ABC75518ED565829 /* Pods_iosApp.framework */,
 			);
 			name = Frameworks;
@@ -110,6 +135,7 @@
 			buildConfigurationList = 29DCA9F0B3A40325067EB163 /* Build configuration list for PBXNativeTarget "iosApp" */;
 			buildPhases = (
 				47A838E022C93CC906D5EDFF /* [CP] Check Pods Manifest.lock */,
+				F90A1B2C3D4E5F6071829304 /* [KMP] Build shared.xcframework */,
 				297B59D9CE634556D6007C40 /* Sources */,
 				1623B02D10928C8101C1F806 /* Resources */,
 				99DF4E45FFECB02C79EA1A70 /* Frameworks */,
@@ -208,6 +234,21 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-iosApp/Pods-iosApp-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
+		F90A1B2C3D4E5F6071829304 /* [KMP] Build shared.xcframework */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "[KMP] Build shared.xcframework";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\ncd \"$SRCROOT/..\"\nif [ \"$CONFIGURATION\" = \"Release\" ]; then\n  ./gradlew :shared:assembleSharedReleaseXCFramework\nelse\n  ./gradlew :shared:assembleSharedDebugXCFramework\nfi\n";
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -221,6 +262,13 @@
 				7D04C3C32F3A2E3B6B9421FF /* NailAPIClient.swift in Sources */,
 				34CA32040A8E636CE35EC31D /* NailBrowserView.swift in Sources */,
 				0ABA9B6E6D1E6EA506918A01 /* NailDetectorIOS.swift in Sources */,
+				1A2B3C4D5E6F708192A3B4C5 /* NailDetectorTestView.swift in Sources */,
+				3C4D5E6F708192A3B4C5D6E7 /* UXKit.swift in Sources */,
+				5E6F708192A3B4C5D6E7F809 /* NailPatternFactory.swift in Sources */,
+				70819203A4B5C6D7E8F90A1B /* BottomNavBar.swift in Sources */,
+				93A4B5C6D7E8F90A1B2C3D4E /* TabContent.swift in Sources */,
+				B5C6D7E8F90A1B2C3D4E5F60 /* DesignSystem.swift in Sources */,
+				FA1B2C3D4E5F60718293A4B5 /* SharedBridge.swift in Sources */,
 				5801F48A136E36ACD69D65DB /* NailTryOnApp.swift in Sources */,
 				3B31BB7F21CE3203CAA4589C /* NailTryOnCameraView.swift in Sources */,
 				D5CD7EF5010ECA5A37E8F7B8 /* TextureMapper.swift in Sources */,

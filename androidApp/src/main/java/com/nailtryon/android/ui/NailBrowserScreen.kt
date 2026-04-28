@@ -82,7 +82,7 @@ fun DesignCard(design: Design, onClick: () -> Unit) {
     ) {
         Column {
             // Parse base64 data URI or URL for image
-            val imageData = design.imageDataUri
+            val imageData = design.imageUrl
             if (imageData.startsWith("data:image")) {
                 // In-app base64 — skip for now (coil doesn't handle base64 natively)
                 Text(

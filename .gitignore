@@ -18,3 +18,8 @@ local.properties
 # Screenshots
 nail-app-screenshot.png
 *.log
+
+# Claude / local agent state + simulator screenshot scratch dir
+.claude/
+iosApp/.claude/
+iosApp/sims/

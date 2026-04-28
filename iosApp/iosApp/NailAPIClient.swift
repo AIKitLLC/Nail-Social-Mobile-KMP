@@ -1,14 +1,21 @@
 import Foundation
+import shared
 
-// MARK: - DTOs matching the shared KMP module
+// MARK: - Swift-friendly DTOs (mirror the Kotlin shared models)
 
-struct NailDesignResponseDTO: Codable {
+struct NailDesignResponseDTO {
     let designs: [NailDesignDTO]
     let totalPages: Int
     let currentPage: Int
+
+    init(_ k: DesignResponse) {
+        self.designs = k.designs.map { NailDesignDTO($0) }
+        self.totalPages = Int(k.totalPages)
+        self.currentPage = Int(k.currentPage)
+    }
 }
 
-struct NailDesignDTO: Codable, Identifiable {
+struct NailDesignDTO: Identifiable {
     let id: String
     let userId: String
     let designPrompt: String
@@ -19,47 +26,48 @@ struct NailDesignDTO: Codable, Identifiable {
     let createdAt: String
     let hashtags: [String]?
     let slug: String?
+
+    init(_ k: Design) {
+        self.id = k.id
+        self.userId = k.userId
+        self.designPrompt = k.designPrompt
+        self.negativePrompt = k.negativePrompt
+        self.imageUrl = k.imageUrl
+        self.extractedNailImageUrl = k.extractedNailImageUrl
+        self.isPublic = k.isPublic
+        self.createdAt = k.createdAt
+        self.hashtags = k.hashtags
+        self.slug = k.slug
+    }
 }
 
-// MARK: - API Client
+// MARK: - API Client — thin Swift adapter over shared.NailApiService
 
 actor NailAPIClient {
     static let shared = NailAPIClient()
-    private let baseURL = "https://nail.ai-kit.net"
-    private let decoder: JSONDecoder = {
-        let d = JSONDecoder()
-        return d
-    }()
+    private let service = NailApiService(baseUrl: "https://nail.ai-kit.net")
 
     func getDesigns(page: Int = 1, limit: Int = 9, hashtag: String? = nil) async throws -> NailDesignResponseDTO {
-        var components = URLComponents(string: "\(baseURL)/api/designs")!
-        components.queryItems = [
-            URLQueryItem(name: "page", value: "\(page)"),
-            URLQueryItem(name: "limit", value: "\(limit)")
-        ]
-        if let hashtag = hashtag {
-            components.queryItems?.append(URLQueryItem(name: "hashtag", value: hashtag))
+        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<NailDesignResponseDTO, Error>) in
+            service.getDesigns(page: Int32(page), limit: Int32(limit), hashtag: hashtag) { response, error in
+                if let response = response {
+                    cont.resume(returning: NailDesignResponseDTO(response))
+                } else {
+                    cont.resume(throwing: error ?? URLError(.badServerResponse))
+                }
+            }
         }
-
-        var request = URLRequest(url: components.url!)
-        request.timeoutInterval = 30
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw URLError(.badServerResponse)
-        }
-        return try decoder.decode(NailDesignResponseDTO.self, from: data)
     }
 
     func getDesignById(_ id: String) async throws -> NailDesignDTO {
-        let url = URL(string: "\(baseURL)/api/designs/\(id)")!
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 30
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw URLError(.badServerResponse)
+        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<NailDesignDTO, Error>) in
+            service.getDesignById(id: id) { design, error in
+                if let design = design {
+                    cont.resume(returning: NailDesignDTO(design))
+                } else {
+                    cont.resume(throwing: error ?? URLError(.badServerResponse))
+                }
+            }
         }
-        return try decoder.decode(NailDesignDTO.self, from: data)
     }
 }

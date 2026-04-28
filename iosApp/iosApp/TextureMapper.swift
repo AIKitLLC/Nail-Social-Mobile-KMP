@@ -162,18 +162,6 @@ struct FingerOrientation {
     let angle: Double
 }
 
-/// Normalized point (0.0 - 1.0)
-struct NormalizedPoint {
-    let x: Float
-    let y: Float
-}
-
-/// Hand analysis data with orientations and landmarks
-struct HandAnalysisData {
-    let orientations: [FingerOrientation]
-    let landmarks: [NormalizedPoint]
-}
-
 extension Int {
     func clamped(to lower: Int, _ upper: Int) -> Int {
         return Swift.min(Swift.max(self, lower), upper)

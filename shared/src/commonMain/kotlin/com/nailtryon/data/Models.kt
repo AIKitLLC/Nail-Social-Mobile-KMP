@@ -16,10 +16,10 @@ data class Design(
     @SerialName("userId") val userId: String,
     @SerialName("designPrompt") val designPrompt: String,
     @SerialName("negativePrompt") val negativePrompt: String? = null,
-    @SerialName("imageDataUri") val imageDataUri: String,
-    @SerialName("extractedNailDataUri") val extractedNailDataUri: String,
+    @SerialName("imageUrl") val imageUrl: String,
+    @SerialName("extractedNailImageUrl") val extractedNailImageUrl: String? = null,
     @SerialName("isPublic") val isPublic: Boolean,
     @SerialName("createdAt") val createdAt: String,
     @SerialName("hashtags") val hashtags: List<String>? = null,
-    @SerialName("catId") val catId: Int? = null
+    @SerialName("slug") val slug: String? = null
 )

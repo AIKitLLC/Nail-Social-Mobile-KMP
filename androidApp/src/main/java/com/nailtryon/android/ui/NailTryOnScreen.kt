@@ -82,7 +82,7 @@ fun NailTryOnScreen(designId: String?) {
                 val design = withContext(Dispatchers.IO) {
                     api.getDesignById(designId)
                 }
-                val base64Str = design.extractedNailDataUri
+                val base64Str = design.extractedNailImageUrl ?: ""
                 if (base64Str.isNotBlank()) {
                     val pureBase64 = if (base64Str.contains(",")) {
                         base64Str.substringAfter(",")
