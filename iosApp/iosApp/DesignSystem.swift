@@ -29,11 +29,13 @@ enum DS {
     enum BottomBar {
         /// Height of the floating nav bar visual
         static let height: CGFloat = 64
-        /// Distance from the very bottom of the safe area
-        static let bottomInset: CGFloat = 8
+        /// Distance from the very bottom of the safe area. 0 = capsule
+        /// sits flush against the home-indicator inset (Apple Maps style)
+        /// so we don't fight the system gesture zone or waste space on iPad.
+        static let bottomInset: CGFloat = 0
         /// Total reserved space scrollable content should leave at the bottom
         /// so nothing is hidden under the bar.
-        static let reservedSpace: CGFloat = 110
+        static let reservedSpace: CGFloat = 96
     }
 
     // MARK: - Brand colors
