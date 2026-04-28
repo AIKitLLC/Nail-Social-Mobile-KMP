@@ -149,6 +149,20 @@ struct NailBrowserView: View {
             .padding(.horizontal, DS.Space.lg)
         }
         .frame(height: 36)
+        // Fade chips into the page edges so users get a visual hint that
+        // the strip scrolls horizontally.
+        .mask(
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0.0),
+                    .init(color: .black, location: 0.04),
+                    .init(color: .black, location: 0.94),
+                    .init(color: .clear, location: 1.0)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
     }
 
     // MARK: - States
