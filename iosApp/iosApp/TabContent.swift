@@ -284,7 +284,7 @@ struct TrendsScreen: View {
             .foregroundStyle(.secondary)
             .padding(.horizontal, DS.Space.xl)
 
-        LazyVGrid(columns: columns, spacing: DS.Space.md) {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: DS.Space.md) {
             ForEach(categories, id: \.key) { c in
                 CategoryTile(
                     category: c,
@@ -430,7 +430,7 @@ struct GalleryScreen: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 6) {
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 6) {
                         ForEach(captures, id: \.absoluteString) { url in
                             GalleryThumb(url: url) {
                                 Haptics.light()

@@ -156,7 +156,7 @@ struct NailBrowserView: View {
     @ViewBuilder
     private var loadingSkeleton: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: DS.Space.md) {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: DS.Space.md) {
                 ForEach(0..<6, id: \.self) { _ in
                     SkeletonCard()
                 }
