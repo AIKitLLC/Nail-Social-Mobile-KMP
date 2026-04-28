@@ -1,4 +1,5 @@
 import SwiftUI
+import shared
 
 /// Tab identifiers — keep stable across the app.
 enum AppTab: Int, CaseIterable, Identifiable {
@@ -30,11 +31,22 @@ struct BottomNavBar: View {
     @Binding var selected: AppTab
     var onTryTapped: () -> Void
 
+    @Environment(\.horizontalSizeClass) private var hsc
+
     @Namespace private var indicator
     @State private var pulse = false
 
     private let leftTabs: [AppTab] = [.discover, .trends]
     private let rightTabs: [AppTab] = [.gallery, .profile]
+
+    /// Cap visual width on iPad so the bar reads as a discrete capsule
+    /// instead of a wall-to-wall strip. KMP-sourced for cross-platform
+    /// consistency with the upcoming Android tablet layout.
+    private var maxBarWidth: CGFloat {
+        hsc == .regular
+            ? CGFloat(truncating: LayoutSpec.shared.bottomBarMaxWidthRegular as NSNumber)
+            : .infinity
+    }
 
     var body: some View {
         ZStack {
@@ -47,6 +59,7 @@ struct BottomNavBar: View {
             .padding(.vertical, 8)
             .padding(.horizontal, 10)
             .frame(height: DS.BottomBar.height)
+            .frame(maxWidth: maxBarWidth)
             .background(
                 Capsule()
                     .fill(.regularMaterial)
@@ -68,6 +81,7 @@ struct BottomNavBar: View {
                     )
                     .shadow(color: .black.opacity(0.18), radius: 16, y: 6)
                     .shadow(color: DS.Brand.pinkPrimary.opacity(0.10), radius: 24, y: 10)
+                    .frame(maxWidth: maxBarWidth)
             )
 
             // Central elevated Try button

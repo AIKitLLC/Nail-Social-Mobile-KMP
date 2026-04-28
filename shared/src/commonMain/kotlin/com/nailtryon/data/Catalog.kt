@@ -83,4 +83,14 @@ object LayoutSpec {
     /// don't look cramped when each tile gets more horizontal real estate.
     val categoryTileHeightCompact: Double = 100.0
     val categoryTileHeightRegular: Double = 132.0
+
+    /// Bottom tab bar visual width cap on regular size classes (iPad).
+    /// At full iPad width the tabs are spaced too far apart and the bar
+    /// stops feeling like a discrete control. Capping at ~520pt keeps it
+    /// proportional to common phone widths while staying centered.
+    val bottomBarMaxWidthRegular: Double = 520.0
+
+    /// Maximum content width for vertical reading rails (settings, profile,
+    /// long lists). Grids that benefit from extra columns ignore this.
+    val readingRailMaxWidthRegular: Double = 760.0
 }
