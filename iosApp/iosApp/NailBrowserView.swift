@@ -21,8 +21,12 @@ struct NailBrowserView: View {
     @Environment(\.horizontalSizeClass) private var hsc
 
     private var columns: [GridItem] {
+        // Using `.flexible(minimum:)` keeps each column hard-clamped to the
+        // proposed width. Plain `.flexible()` was leaving the iPad's first
+        // column slightly under-proposed, which collapsed Text intrinsic
+        // width inside the cell and caused leading characters to clip.
         Array(
-            repeating: GridItem(.flexible(), spacing: DS.Space.md),
+            repeating: GridItem(.flexible(minimum: 100), spacing: DS.Space.md),
             count: SharedLayout.designsColumns(regular: hsc == .regular)
         )
     }
@@ -40,7 +44,7 @@ struct NailBrowserView: View {
                 emptyState
             } else {
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: DS.Space.md) {
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: DS.Space.md) {
                         ForEach(filteredDesigns) { design in
                             DesignCardView(design: design)
                                 .onTapGesture {
