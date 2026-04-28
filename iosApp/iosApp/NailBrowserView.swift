@@ -1,4 +1,5 @@
 import SwiftUI
+import shared
 
 /// Browse nail designs from the API
 struct NailBrowserView: View {
@@ -10,47 +11,40 @@ struct NailBrowserView: View {
     @State private var errorMessage: String?
     @State private var currentPage = 1
     @State private var totalPages = 1
+    @State private var searchText: String = ""
+    @State private var activeHashtag: String? = nil
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 8),
-        GridItem(.flexible(), spacing: 8),
-        GridItem(.flexible(), spacing: 8)
-    ]
+    /// Filter chips sourced from the KMP shared catalog so iOS + Android
+    /// always show the same set of high-level filters.
+    private let hashtags: [String] = NailCatalog.shared.popularHashtags as? [String] ?? []
+
+    @Environment(\.horizontalSizeClass) private var hsc
+
+    private var columns: [GridItem] {
+        Array(
+            repeating: GridItem(.flexible(), spacing: DS.Space.md),
+            count: SharedLayout.designsColumns(regular: hsc == .regular)
+        )
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: DS.Space.sm) {
+            searchBar
+            hashtagFilterStrip
+
             if isLoading && designs.isEmpty {
-                Spacer()
-                ProgressView("Loading designs...")
-                Spacer()
+                loadingSkeleton
             } else if let error = errorMessage, designs.isEmpty {
-                Spacer()
-                VStack(spacing: 16) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 48))
-                        .foregroundColor(.orange)
-                    Text("Failed to load")
-                        .font(.headline)
-                    Text(error)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Button("Retry") {
-                        loadDesigns(page: 1)
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                Spacer()
-            } else if designs.isEmpty {
-                Spacer()
-                Text("No designs available")
-                    .foregroundColor(.secondary)
-                Spacer()
+                errorState(error)
+            } else if filteredDesigns.isEmpty {
+                emptyState
             } else {
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 8) {
-                        ForEach(designs) { design in
+                    LazyVGrid(columns: columns, spacing: DS.Space.md) {
+                        ForEach(filteredDesigns) { design in
                             DesignCardView(design: design)
                                 .onTapGesture {
+                                    Haptics.light()
                                     onDesignSelected(design.id)
                                 }
                                 .onAppear {
@@ -60,8 +54,8 @@ struct NailBrowserView: View {
                                 }
                         }
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.top, 8)
+                    .padding(.horizontal, DS.Space.lg)
+                    .padding(.top, DS.Space.sm)
 
                     if isLoadingMore {
                         ProgressView()
@@ -78,6 +72,151 @@ struct NailBrowserView: View {
                 loadDesigns(page: 1)
             }
         }
+    }
+
+    // MARK: - Search + filters
+
+    private var filteredDesigns: [DesignItem] {
+        designs.filter { d in
+            let matchesText = searchText.isEmpty
+                || d.prompt.lowercased().contains(searchText.lowercased())
+                || d.hashtags.contains(where: { $0.lowercased().contains(searchText.lowercased()) })
+            let matchesTag: Bool
+            if let tag = activeHashtag {
+                matchesTag = d.hashtags.contains(where: { $0.lowercased() == tag.lowercased() })
+            } else {
+                matchesTag = true
+            }
+            return matchesText && matchesTag
+        }
+    }
+
+    @ViewBuilder
+    private var searchBar: some View {
+        HStack(spacing: DS.Space.sm) {
+            Image(systemName: "magnifyingglass")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
+            TextField("Search prompts or hashtags", text: $searchText)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+            if !searchText.isEmpty {
+                Button {
+                    Haptics.selection()
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, DS.Space.md)
+        .padding(.vertical, DS.Space.sm)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous)
+                .fill(Color(.tertiarySystemBackground))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous)
+                        .strokeBorder(.primary.opacity(0.05), lineWidth: 0.5)
+                )
+        )
+        .padding(.horizontal, DS.Space.lg)
+    }
+
+    @ViewBuilder
+    private var hashtagFilterStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: DS.Space.sm) {
+                FilterChip(label: "All", isSelected: activeHashtag == nil) {
+                    Haptics.selection()
+                    withAnimation(.snappySpring) { activeHashtag = nil }
+                }
+                ForEach(hashtags, id: \.self) { tag in
+                    FilterChip(label: "#\(tag)", isSelected: activeHashtag == tag) {
+                        Haptics.selection()
+                        withAnimation(.snappySpring) {
+                            activeHashtag = (activeHashtag == tag) ? nil : tag
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, DS.Space.lg)
+        }
+        .frame(height: 36)
+    }
+
+    // MARK: - States
+
+    @ViewBuilder
+    private var loadingSkeleton: some View {
+        ScrollView {
+            LazyVGrid(columns: columns, spacing: DS.Space.md) {
+                ForEach(0..<6, id: \.self) { _ in
+                    SkeletonCard()
+                }
+            }
+            .padding(.horizontal, DS.Space.lg)
+            .padding(.top, DS.Space.sm)
+        }
+        .disabled(true)
+    }
+
+    @ViewBuilder
+    private func errorState(_ error: String) -> some View {
+        VStack(spacing: DS.Space.lg) {
+            Spacer()
+            ZStack {
+                Circle()
+                    .fill(DS.Brand.pinkPrimary.opacity(0.12))
+                    .frame(width: 88, height: 88)
+                Image(systemName: "wifi.exclamationmark")
+                    .font(.system(size: 38, weight: .light))
+                    .foregroundStyle(DS.Brand.pinkPrimary)
+            }
+            VStack(spacing: 6) {
+                Text("Couldn't load designs")
+                    .font(.title3.weight(.semibold))
+                Text(error)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
+            Button(action: {
+                Haptics.light()
+                loadDesigns(page: 1)
+            }) {
+                Text("Try again")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 32)
+                    .padding(.vertical, 12)
+                    .background(Capsule().fill(DS.Brand.primaryGradient))
+                    .shadow(color: DS.Brand.pinkPrimary.opacity(0.4), radius: 10, y: 4)
+            }
+            .buttonStyle(BounceButtonStyle())
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private var emptyState: some View {
+        VStack(spacing: DS.Space.md) {
+            Spacer()
+            Image(systemName: "sparkles")
+                .font(.system(size: 56, weight: .light))
+                .foregroundStyle(DS.Brand.pinkPrimary.opacity(0.7))
+            Text("No designs yet")
+                .font(.title3.weight(.semibold))
+            Text("Pull down to refresh.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func loadDesigns(page: Int) {
@@ -147,52 +286,75 @@ struct DesignCardView: View {
     let design: DesignItem
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.gray.opacity(0.2))
-                .aspectRatio(1, contentMode: .fit)
-                .overlay {
-                    if let url = design.imageUrl, let imageUrl = URL(string: url) {
-                        AsyncImage(url: imageUrl) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            case .failure:
-                                Image(systemName: "photo")
-                                    .font(.title2)
-                                    .foregroundColor(.gray)
-                            case .empty:
-                                ProgressView()
-                            @unknown default:
-                                EmptyView()
-                            }
+        VStack(alignment: .leading, spacing: DS.Space.sm) {
+            ZStack {
+                LinearGradient(
+                    colors: [Color(.systemGray5), Color(.systemGray6)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+
+                if let url = design.imageUrl, let imageUrl = URL(string: url) {
+                    AsyncImage(url: imageUrl) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        case .failure:
+                            placeholderIcon("photo.badge.exclamationmark")
+                        case .empty:
+                            ProgressView().tint(DS.Brand.pinkPrimary)
+                        @unknown default:
+                            EmptyView()
                         }
-                    } else {
-                        Image(systemName: "sparkles")
-                            .font(.title2)
-                            .foregroundColor(.pink)
+                    }
+                } else {
+                    placeholderIcon("sparkles")
+                }
+            }
+            .aspectRatio(0.78, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.lg, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(design.prompt)
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if !design.hashtags.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(Array(design.hashtags.prefix(2).enumerated()), id: \.offset) { _, tag in
+                            Text("#\(tag)")
+                                .font(.caption2.weight(.semibold))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(DS.Brand.pinkPrimary.opacity(0.12))
+                                .foregroundStyle(DS.Brand.pinkPrimary)
+                                .clipShape(Capsule())
+                                .lineLimit(1)
+                        }
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-
-            Text(design.prompt)
-                .font(.caption2)
-                .lineLimit(2)
-                .padding(.horizontal, 2)
-
-            if !design.hashtags.isEmpty {
-                Text(design.hashtags.prefix(2).map { "#\($0)" }.joined(separator: " "))
-                    .font(.caption2)
-                    .foregroundColor(.pink)
-                    .lineLimit(1)
-                    .padding(.horizontal, 2)
-                    .padding(.bottom, 2)
             }
+            .padding(.horizontal, DS.Space.md)
+            .padding(.bottom, DS.Space.sm)
         }
-        .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .shadow(color: .black.opacity(0.08), radius: 3)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.lg, style: .continuous)
+                .fill(Color(.systemBackground))
+        )
+        .cardShadow()
+    }
+
+    private func placeholderIcon(_ name: String) -> some View {
+        Image(systemName: name)
+            .font(.system(size: 32, weight: .light))
+            .foregroundStyle(DS.Brand.pinkPrimary.opacity(0.7))
     }
 }
