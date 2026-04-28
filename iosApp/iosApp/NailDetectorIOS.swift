@@ -2,6 +2,8 @@ import Foundation
 import UIKit
 import Vision
 import TensorFlowLite
+import TensorFlowLiteCCoreML
+import TensorFlowLiteCMetal
 import Accelerate
 
 /// iOS-native nail detector using TensorFlow Lite for the segmentation model
@@ -68,18 +70,60 @@ class NailDetectorIOS {
             print("❌ Model file not found: nail_detect_model.tflite")
             return
         }
-        
+
+        var options = Interpreter.Options()
+        options.threadCount = 4
+
+        // Build the fastest available delegate stack:
+        //   1. Core ML — runs on Apple Neural Engine on iPhone 12+ (A14+).
+        //      Roughly 2-3× faster than CPU on supported chips and frees the
+        //      CPU for camera + UI work.
+        //   2. Metal — GPU fallback for older iPhones without a usable
+        //      Neural Engine path. Still meaningfully faster than CPU.
+        //   3. CPU multi-thread — final fallback (existing path).
+        var delegates: [Delegate] = []
+
+        // Core ML delegate — restrict to Neural-Engine-equipped devices to
+        // avoid the perf regression CoreML can show on older A-series CPUs.
+        var coreMLOptions = CoreMLDelegate.Options()
+        coreMLOptions.enabledDevices = .neuralEngine
+        if let coreML = CoreMLDelegate(options: coreMLOptions) {
+            delegates.append(coreML)
+            print("✅ TFLite delegate: Core ML (Neural Engine)")
+        } else {
+            // No Neural Engine — try Metal/GPU instead.
+            let metal = MetalDelegate()
+            delegates.append(metal)
+            print("✅ TFLite delegate: Metal (GPU)")
+        }
+
         do {
-            var options = Interpreter.Options()
-            options.threadCount = 4
-            
-            interpreter = try Interpreter(modelPath: modelPath, options: options)
+            if delegates.isEmpty {
+                interpreter = try Interpreter(modelPath: modelPath, options: options)
+                print("⚠️ TFLite delegate: CPU only (\(options.threadCount ?? 4) threads)")
+            } else {
+                interpreter = try Interpreter(
+                    modelPath: modelPath,
+                    options: options,
+                    delegates: delegates
+                )
+            }
             try interpreter?.allocateTensors()
-            
+
             print("✅ TFLite interpreter initialized successfully")
             print("   Input: \(inputSize)x\(inputSize)x3 -> Output: \(inputSize)x\(inputSize)x1")
         } catch {
-            print("❌ Failed to initialize TFLite interpreter: \(error)")
+            // If accelerated delegate failed (e.g., op not supported), try
+            // a clean CPU-only interpreter so we don't lose the feature
+            // entirely on devices where the delegate refuses.
+            print("⚠️ Accelerated delegate failed (\(error)); falling back to CPU")
+            do {
+                interpreter = try Interpreter(modelPath: modelPath, options: options)
+                try interpreter?.allocateTensors()
+                print("✅ TFLite interpreter initialized on CPU fallback")
+            } catch {
+                print("❌ Failed to initialize TFLite interpreter: \(error)")
+            }
         }
     }
     

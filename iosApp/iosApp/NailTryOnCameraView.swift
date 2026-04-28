@@ -43,25 +43,19 @@ struct NailTryOnCameraView: View {
                 //    UIImage instance — SwiftUI cross-fades them under
                 //    .animation(.smoothFade) for buttery tracking.
                 if let mask = cameraManager.maskImage {
-                    ZStack {
-                        Image(uiImage: mask)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .opacity(maskAppeared ? 0.78 : 0.0)
-                            .scaleEffect(maskPulse)
-                            .id(ObjectIdentifier(mask))
-                            .transition(.opacity)
-                            .blendMode(.normal)
-
-                        Image(uiImage: mask)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .mask(ShimmerOverlay())
-                            .opacity(maskAppeared ? 0.55 : 0.0)
-                    }
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-                    .animation(.smoothFade, value: ObjectIdentifier(mask))
+                    // Render the mask fully opaque so the selected pattern
+                    // shows its true color over the user's nails — no see-
+                    // through, "this is exactly how the polish would look".
+                    Image(uiImage: mask)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .opacity(maskAppeared ? 1.0 : 0.0)
+                        .scaleEffect(maskPulse)
+                        .id(ObjectIdentifier(mask))
+                        .transition(.opacity)
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+                        .animation(.smoothFade, value: ObjectIdentifier(mask))
                     .onAppear {
                         withAnimation(.snappySpring) { maskAppeared = true }
                         if !hasSeenFirstDetection {
@@ -488,7 +482,7 @@ class CameraManager: NSObject, ObservableObject {
             let composed = renderer.image { _ in
                 frame.draw(in: CGRect(origin: .zero, size: frame.size))
                 if let mask = mask {
-                    mask.draw(in: CGRect(origin: .zero, size: frame.size), blendMode: .normal, alpha: 0.85)
+                    mask.draw(in: CGRect(origin: .zero, size: frame.size), blendMode: .normal, alpha: 1.0)
                 }
             }
             let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
@@ -513,7 +507,18 @@ class CameraManager: NSObject, ObservableObject {
         // and keeps inference budget reasonable.
         session.sessionPreset = .hd1280x720
 
-        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+        // Default to the 0.5x ultra-wide camera so the user's whole hand
+        // fits in frame at arm's length without backing up — critical for
+        // a try-on flow where the nails need to be visible while the user
+        // is just looking at their own hand.
+        let device: AVCaptureDevice
+        if let ultraWide = AVCaptureDevice.default(.builtInUltraWideCamera, for: .video, position: .back) {
+            device = ultraWide
+        } else if let wide = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) {
+            // Older iPhones (XS, 11 non-Pro, SE) don't have an ultra-wide
+            // lens — fall back to the standard wide camera.
+            device = wide
+        } else {
             DispatchQueue.main.async { self.error = "No camera device found." }
             return
         }

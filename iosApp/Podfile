@@ -2,7 +2,13 @@ platform :ios, '17.0'
 
 target 'iosApp' do
   use_frameworks!
-  
+
   # TensorFlow Lite for iOS - official CocoaPod
   pod 'TensorFlowLiteSwift', '~> 2.16'
+  # Core ML delegate — routes inference to the Neural Engine on iPhone
+  # 12+ for substantially faster nail-segmentation runtime.
+  pod 'TensorFlowLiteSwift/CoreML', '~> 2.16'
+  # Metal/GPU delegate — fallback for older iPhones without a usable
+  # Neural Engine path; still much faster than CPU.
+  pod 'TensorFlowLiteSwift/Metal', '~> 2.16'
 end
