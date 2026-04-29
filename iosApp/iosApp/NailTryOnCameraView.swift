@@ -439,6 +439,19 @@ class CameraManager: NSObject, ObservableObject {
     private var frameCount = 0
     private let processEveryNFrames = 3
 
+    /// How many consecutive *miss* detections we tolerate before clearing
+    /// the live mask. With processEveryNFrames=3 at ~30 fps we run roughly
+    /// 10 detections/sec, so 8 misses ≈ 800 ms of "hold" — long enough to
+    /// ride out a single bad frame or a brief hand-out-of-frame moment
+    /// without making the polish snap on/off jarringly.
+    private let missTolerance = 8
+    private var consecutiveMisses = 0
+
+    /// Mask image kept around as the "last good" overlay even after the
+    /// most recent inference returned no components. Lets the live preview
+    /// linger gracefully instead of flickering off the moment a hand shifts.
+    private var lastGoodMask: UIImage?
+
     override init() {
         super.init()
         #if targetEnvironment(simulator)
@@ -464,6 +477,26 @@ class CameraManager: NSObject, ObservableObject {
             return
         }
         detector.patternImage = NailPatternFactory.image(for: index)
+    }
+
+    /// Called on the main thread whenever a detection cycle returns zero
+    /// components (or fails entirely). Holds the previous mask for a few
+    /// detections to ride out hand motion / brief occlusion, then clears.
+    /// Must run on main since it mutates `@Published` state.
+    private func handleMissedDetection() {
+        consecutiveMisses += 1
+        if consecutiveMisses >= missTolerance {
+            // Tolerance burned through — fade the mask out and reset state
+            // so the next detection starts clean.
+            if maskImage != nil {
+                withAnimation(.smoothFade) {
+                    maskImage = nil
+                }
+            }
+            lastGoodMask = nil
+        }
+        // Below tolerance threshold — keep `maskImage` exactly as-is so the
+        // last good overlay lingers visible.
     }
 
     /// Compose the latest oriented camera frame + current mask into a single
@@ -597,13 +630,28 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
 
             DispatchQueue.main.async { self.isDetecting = true }
             guard let result = self.detector.detectNails(image) else {
-                DispatchQueue.main.async { self.isDetecting = false }
+                // Inference itself failed (very rare). Treat as a miss so
+                // the lingering mask drains via the same tolerance window.
+                DispatchQueue.main.async {
+                    self.handleMissedDetection()
+                    self.isDetecting = false
+                }
                 return
             }
 
             DispatchQueue.main.async {
-                withAnimation(.smoothFade) {
-                    self.maskImage = result.maskImage
+                if result.componentsFound > 0 {
+                    // Hit — adopt this mask as the new "last good" frame.
+                    self.consecutiveMisses = 0
+                    self.lastGoodMask = result.maskImage
+                    withAnimation(.smoothFade) {
+                        self.maskImage = result.maskImage
+                    }
+                } else {
+                    // Miss — keep the prior mask visible for `missTolerance`
+                    // detections to avoid jittery on/off flickers during
+                    // brief hand movement, then fade out gracefully.
+                    self.handleMissedDetection()
                 }
                 // Smooth confidence (light low-pass for HUD)
                 let blended = self.confidence * 0.6 + result.maxConfidence * 0.4
