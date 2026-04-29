@@ -46,16 +46,19 @@ struct NailTryOnCameraView: View {
                     // Render the mask fully opaque so the selected pattern
                     // shows its true color over the user's nails — no see-
                     // through, "this is exactly how the polish would look".
+                    //
+                    // Critically: NO `.animation()` and no per-frame `.id()`
+                    // here. We replace the underlying UIImage every camera
+                    // tick (~30 fps); cross-fading each replacement makes
+                    // the polish feel lagged behind the moving hand. Just
+                    // re-render in place — that's what AR tracking requires.
                     Image(uiImage: mask)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .opacity(maskAppeared ? 1.0 : 0.0)
                         .scaleEffect(maskPulse)
-                        .id(ObjectIdentifier(mask))
-                        .transition(.opacity)
                         .ignoresSafeArea()
                         .allowsHitTesting(false)
-                        .animation(.smoothFade, value: ObjectIdentifier(mask))
                     .onAppear {
                         withAnimation(.snappySpring) { maskAppeared = true }
                         if !hasSeenFirstDetection {
@@ -437,15 +440,25 @@ class CameraManager: NSObject, ObservableObject {
     private let detector = NailDetectorIOS()
     private let inferenceQueue = DispatchQueue(label: "nail.inference.queue", qos: .userInitiated)
     private var frameCount = 0
-    private let processEveryNFrames = 3
+    /// Running detection every frame is what AR needs — when the user
+    /// rotates or moves their hand the polish has to track in real time,
+    /// not lag a stale 100ms behind. With Core ML on the Neural Engine
+    /// (and the vImage SIMD preprocess from Phase 1) this is feasible on
+    /// iPhone 12+. Older devices that can't keep up still won't choke
+    /// because `alwaysDiscardsLateVideoFrames = true` simply drops frames
+    /// the inference queue can't service in time.
+    private let processEveryNFrames = 1
 
-    /// How many consecutive *miss* detections we tolerate before clearing
-    /// the live mask. With processEveryNFrames=3 at ~30 fps we run roughly
-    /// 10 detections/sec, so 8 misses ≈ 800 ms of "hold" — long enough to
-    /// ride out a single bad frame or a brief hand-out-of-frame moment
-    /// without making the polish snap on/off jarringly.
-    private let missTolerance = 8
+    /// Drop tolerance flat to "very brief blip" range: at the new ~30 fps
+    /// detection rate, 5 misses ≈ 165 ms — short enough that a moving
+    /// hand updates almost immediately, long enough to absorb a single
+    /// bad inference without flickering off.
+    private let missTolerance = 5
     private var consecutiveMisses = 0
+    /// Inference is single-flight: if a new frame arrives while the last
+    /// one is still being processed we drop the new frame rather than
+    /// queuing it. Prevents queue back-pressure when running every frame.
+    private var inferenceInFlight = false
 
     /// Mask image kept around as the "last good" overlay even after the
     /// most recent inference returned no components. Lets the live preview
@@ -620,8 +633,16 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
         guard frameCount % processEveryNFrames == 0 else { return }
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
 
+        // Single-flight: skip this frame if the previous inference is
+        // still running. Combined with `alwaysDiscardsLateVideoFrames` on
+        // the capture output this means we always work on the freshest
+        // available frame instead of queuing stale ones up.
+        guard !inferenceInFlight else { return }
+        inferenceInFlight = true
+
         inferenceQueue.async { [weak self] in
             guard let self = self else { return }
+            defer { self.inferenceInFlight = false }
             guard let image = self.pixelBufferToUIImage(pixelBuffer) else { return }
 
             // Cache the most-recent oriented frame so the snapshot button can
@@ -641,16 +662,17 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
 
             DispatchQueue.main.async {
                 if result.componentsFound > 0 {
-                    // Hit — adopt this mask as the new "last good" frame.
+                    // Hit — write the mask straight to @Published with no
+                    // animation. `.smoothFade` previously added a 200-300 ms
+                    // crossfade that read as lag when the user rotated their
+                    // hand. AR has to track in real time; we let the per-
+                    // frame replacements provide the smoothness.
                     self.consecutiveMisses = 0
                     self.lastGoodMask = result.maskImage
-                    withAnimation(.smoothFade) {
-                        self.maskImage = result.maskImage
-                    }
+                    self.maskImage = result.maskImage
                 } else {
                     // Miss — keep the prior mask visible for `missTolerance`
-                    // detections to avoid jittery on/off flickers during
-                    // brief hand movement, then fade out gracefully.
+                    // detections to ride out one bad inference, then clear.
                     self.handleMissedDetection()
                 }
                 // Smooth confidence (light low-pass for HUD)
